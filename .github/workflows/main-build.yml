@@ -92,6 +92,38 @@ jobs:
     with:
       java-version: 25
 
+  generate-configuration-schema:
+    name: Generate Configuration Schema
+    needs: [publish-develop-docker]
+    if: "!failure() && !cancelled() && github.ref == 'refs/heads/develop'"
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download executable
+        uses: actions/download-artifact@v5
+        with:
+          name: exe
+          path: build/executable
+
+      - name: Prepare executable
+        run: cp build/executable/* build/executable/kestra && chmod +x build/executable/kestra
+
+      - name: Generate and publish schema
+        uses: kestra-io/actions/composite/kestra/kestra-configuration-schema@main
+        with:
+          kestra-version: develop
+          executable-path: build/executable/kestra
+          output-path: oss.json
+          gcs-destination: kestra-api-storage_prd/configuration-schema/develop/
+          gcp-credentials-json: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Slack - Schema generation failure
+        if: failure()
+        uses: kestra-io/actions/composite/slack-status@main
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          channel: 'C09FF36GKE1'
+
   end:
     runs-on: ubuntu-latest
     needs: [backend-tests, frontend-tests, publish-develop-docker, publish-develop-maven]
